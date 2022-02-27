@@ -2,6 +2,8 @@
 
 This is a Seq2Seq model with Copy Mechanism and Coverage Mechanism.
 
+Note: The project refers to [atulkum](https://github.com/atulkum/pointer_summarizer) and [laihuiyuan](https://github.com/laihuiyuan/pointer-generator)
+
 Datasets:
 
 * `dataset1`: [CNN/DailyMail](https://arxiv.org/abs/1602.06023)
@@ -31,4 +33,14 @@ Models:
 
 ```shell
 PYTHONPATH=. python dataprocess/process.py
+```
+
+### Unit Test
+
+* for loader
+
+```shell
+PYTHONPATH=. python loaders/loader1.py
+
+PYTHONPATH=. python loaders/loader1.py --is_copy
 ```
