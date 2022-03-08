@@ -33,6 +33,12 @@ def get_parser():
     parser.add_argument('--batch_size', type = int, default = 16, help = '')
     parser.add_argument('--total_iter', type = int, default = 500000, help = '')
 
+    parser.add_argument('--lr', type = float, default = 0.15, help = '')
+    parser.add_argument('--lr_coverage', type = float, default = 0.15, help = '')
+    parser.add_argument('--ada_init_ac', type = float, default = 0.1, help = '')
+
+    parser.add_argument('--grad_clip', type = float, default = 2.0, help = '')
+
     return parser
 
 if __name__ == '__main__':

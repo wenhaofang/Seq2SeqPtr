@@ -58,3 +58,23 @@ PYTHONPATH=. python modules/module1.py --is_coverage
 # module with mechanism copy and coverage
 PYTHONPATH=. python modules/module1.py --is_copy --is_coverage
 ```
+
+### Main Process
+
+```shell
+python main.py
+```
+
+You can change the config either in the command line or in the file `utils/parser.py`
+
+Here are the examples:
+
+```shell
+python main.py
+
+python main.py --is_copy
+
+python main.py --is_coverage
+
+python main.py --is_copy --is_coverage
+```
