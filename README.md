@@ -40,7 +40,21 @@ PYTHONPATH=. python dataprocess/process.py
 * for loader
 
 ```shell
+# loader(basic)
 PYTHONPATH=. python loaders/loader1.py
-
+# loader for copy mechanism
 PYTHONPATH=. python loaders/loader1.py --is_copy
+```
+
+* for module
+
+```shell
+# module(basic)
+PYTHONPATH=. python modules/module1.py
+# module with mechanism copy
+PYTHONPATH=. python modules/module1.py --is_copy
+# module with mechanism coverage
+PYTHONPATH=. python modules/module1.py --is_coverage
+# module with mechanism copy and coverage
+PYTHONPATH=. python modules/module1.py --is_copy --is_coverage
 ```
