@@ -5,6 +5,8 @@ def get_parser():
 
     # For Basic
     parser.add_argument('--name', default = 'main', help = '')
+    parser.add_argument('--ckpt', default = '', help = '')
+    parser.add_argument('--mode', default = 'train', choices = ['train', 'valid', 'test'], help = '')
 
     # For Loader
     parser.add_argument('--sources_path', default = 'datasources', help = '')
@@ -18,6 +20,7 @@ def get_parser():
     parser.add_argument('--min_freq', type = int, default = 6, help = '')
     parser.add_argument('--max_numb', type = int, default = 50000, help = '')
     parser.add_argument('--max_enc_step', type = int, default = 400, help = '')
+    parser.add_argument('--min_dec_step', type = int, default = 40, help = '')
     parser.add_argument('--max_dec_step', type = int, default = 100, help = '')
 
     # For Module
@@ -30,6 +33,7 @@ def get_parser():
     parser.add_argument('--cov_loss_wt', type = float, default = 1.0, help = '')
 
     # For Train
+    parser.add_argument('--beam_width', type = int, default = 4, help = '')
     parser.add_argument('--batch_size', type = int, default = 16, help = '')
     parser.add_argument('--total_iter', type = int, default = 500000, help = '')
 

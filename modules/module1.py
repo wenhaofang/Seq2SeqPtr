@@ -216,6 +216,31 @@ class Decoder(nn.Module):
 
         return final_prob, s_t, c_t, extra_prob, coverage_next
 
+class BeamNode():
+    def __init__(self, idx, pro, s_t, c_t, coverage):
+        self.idx = idx
+        self.pro = pro
+        self.s_t = s_t
+        self.c_t = c_t
+        self.coverage = coverage
+
+    def ext_node(self, idx, pro, s_t, c_t, coverage):
+        return BeamNode(
+            idx = self.idx + [idx],
+            pro = self.pro + [pro],
+            s_t = s_t,
+            c_t = c_t,
+            coverage = coverage
+        )
+
+    @property
+    def last_idx(self):
+        return self.idx[-1]
+
+    @property
+    def avg_prob(self):
+        return sum(self.pro) / len(self.idx)
+
 class Seq2Seq(nn.Module):
     def __init__(self, vocab_size, emb_dim, hid_dim, dropout, is_copy, is_coverage):
         super(Seq2Seq, self).__init__()
@@ -274,6 +299,102 @@ class Seq2Seq(nn.Module):
 
         return batch_step_loss, 0.
 
+    def predict( self,
+        enc_inp, enc_len, enc_pad_mask, enc_inp_extend_vocab, extra_zeros, coverage,
+        min_dec_step, max_dec_step, BOS_ID, EOS_ID, UNK_ID, beam_width
+    ):
+        enc_out, enc_fea, enc_h = self.encoder(enc_inp, enc_len)
+
+        s_t = self.reduce_state(enc_h)
+
+        c_t = Variable(torch.zeros((enc_out.shape[0], self.hid_dim * 2)).to(enc_out.device))
+
+        beams = [
+            BeamNode(
+                idx = [BOS_ID],
+                pro = [0],
+                s_t = (
+                    s_t[0].squeeze(0)[0],
+                    s_t[1].squeeze(0)[0],
+                ),
+                c_t = c_t[0],
+                coverage = coverage[0] if self.is_coverage else None
+            ) for _ in range(beam_width)
+        ]
+
+        steps = 0
+        results = []
+        while (
+            steps < max_dec_step and
+            len(results) < beam_width
+        ):
+            latest_ids = [beam.last_idx for beam in beams]
+            latest_ids = [word_id if word_id < self.vocab_size else UNK_ID for word_id in latest_ids]
+            y_t = Variable(torch.LongTensor(latest_ids)).to(enc_out.device)
+
+            s_t = (
+                torch.stack([beam.s_t[0] for beam in beams], dim = 0).unsqueeze(0),
+                torch.stack([beam.s_t[1] for beam in beams], dim = 0).unsqueeze(0)
+            )
+
+            c_t = torch.stack([beam.c_t for beam in beams], dim = 0)
+
+            coverage = None
+            if  self.is_coverage:
+                coverage = torch.stack([beam.coverage for beam in beams], dim = 0)
+
+            final_prob, s_t, c_t, attn, coverage = self.decoder(
+                y_t, s_t, c_t, enc_out, enc_fea, enc_pad_mask,
+                enc_inp_extend_vocab, extra_zeros, coverage, steps
+            )
+
+            final_log_prob = torch.log(final_prob)
+            topk_log_probs, topk_ids = torch.topk(final_log_prob, beam_width * 2)
+
+            next_beams = []
+            for i in range(1 if steps == 0 else len(beams)):
+                beam = beams[i]
+                s_t_i = (
+                    s_t[0].squeeze(0)[i],
+                    s_t[1].squeeze(0)[i]
+                )
+                c_t_i = c_t[i]
+                coverage_i = coverage[i] if self.is_coverage else None
+                for j in range(beam_width * 2):
+                    next_beam = beam.ext_node(
+                        idx = topk_ids[i, j].item(),
+                        pro = topk_log_probs[i, j].item(),
+                        s_t = s_t_i,
+                        c_t = c_t_i,
+                        coverage = coverage_i
+                    )
+                    next_beams.append(next_beam)
+
+            next_beams = sorted(next_beams, key = lambda beam: beam.avg_prob, reverse = True)
+
+            beams = []
+            for beam in next_beams:
+                if beam.last_idx == EOS_ID:
+                    if steps >= min_dec_step:
+                        results.append(beam)
+                else:
+                    beams.append(beam)
+                if (
+                    len(beams) >= beam_width or
+                    len(results) >= beam_width
+                ):
+                    break
+
+            steps += 1
+
+        if  len(results) == 0:
+            results = beams
+
+        results = sorted(results, key = lambda beam: beam.avg_prob, reverse = True)
+        results = list(map(lambda beam: beam.idx[1:], results))
+
+        return results
+
 def get_module(option, vocab_size):
     return Seq2Seq(
         vocab_size,
@@ -294,6 +415,7 @@ if __name__ == '__main__':
 
     module = get_module(option, vocab_size)
 
+    beam_width = option.beam_width
     batch_size = option.batch_size
     enc_step = option.max_enc_step
     dec_step = option.max_dec_step
@@ -315,4 +437,22 @@ if __name__ == '__main__':
         max_dec_step         = option.max_dec_step
     )
 
-    print(loss, cove_loss)
+    print(loss)      # Float Tensor with gradient
+    print(cove_loss) # Float
+
+    result = module.predict(
+        enc_inp              = torch.randint(0, vocab_size, (beam_width, enc_step)),
+        enc_len              = torch.tensor (list(range(enc_step, enc_step - beam_width, -1))),
+        enc_pad_mask         = torch.ones((beam_width, enc_step)),
+        enc_inp_extend_vocab = torch.randint(0, vocab_size + max_oov_len, (beam_width, enc_step)),
+        extra_zeros          = torch.zeros((beam_width, max_oov_len)),
+        coverage             = torch.zeros((beam_width, enc_step)),
+        min_dec_step = option.min_dec_step,
+        max_dec_step = option.max_dec_step,
+        BOS_ID = 0,
+        EOS_ID = 2,
+        UNK_ID = 3,
+        beam_width = beam_width
+    )
+
+    print(result) # Nested List (beam_width, seq_len)

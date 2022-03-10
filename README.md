@@ -51,11 +51,11 @@ PYTHONPATH=. python loaders/loader1.py --is_copy
 ```shell
 # module(basic)
 PYTHONPATH=. python modules/module1.py
-# module with mechanism copy
+# module with copy mechanism
 PYTHONPATH=. python modules/module1.py --is_copy
-# module with mechanism coverage
+# module with coverage mechanism
 PYTHONPATH=. python modules/module1.py --is_coverage
-# module with mechanism copy and coverage
+# module with copy mechanism and coverage mechanism
 PYTHONPATH=. python modules/module1.py --is_copy --is_coverage
 ```
 
@@ -70,11 +70,40 @@ You can change the config either in the command line or in the file `utils/parse
 Here are the examples:
 
 ```shell
-python main.py
+# train
+python main.py \
+    --name main \
+    --mode train \
+    --is_copy \
+    --is_coverage
+```
 
-python main.py --is_copy
+```shell
+# train (continue training at checkpoint)
+python main.py \
+    --name main \
+    --mode train \
+    --ckpt result/save/main/10000.ckpt \
+    --is_copy \
+    --is_coverage
+```
 
-python main.py --is_coverage
+```shell
+# valid
+python main.py \
+    --name main \
+    --mode valid \
+    --ckpt result/save/main/10000.ckpt \
+    --is_copy \
+    --is_coverage
+```
 
-python main.py --is_copy --is_coverage
+```shell
+# test
+python main.py \
+    --name main \
+    --mode test \
+    --ckpt result/save/main/10000.ckpt \
+    --is_copy \
+    --is_coverage
 ```

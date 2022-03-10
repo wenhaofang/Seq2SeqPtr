@@ -223,7 +223,7 @@ class Batch():
             for i, datum in enumerate(datas):
                 self.enc_inp_extend_vocab[i] = datum.enc_inp_extend_vocab[:]
 
-            self.oovs = [datum.oovs for datum in datas]
+            self.oovs = [datum.oovs for datum in datas] # nested list
 
     def init_dec_seqs(self, datas, max_len, pad_idx):
         for datum in datas:
@@ -245,7 +245,7 @@ class Batcher():
 
     BATCH_QUEUE_MAX = 100
 
-    def __init__(self, file_path, vocab, batch_size, max_enc_step, max_dec_step, is_copy, single_pass):
+    def __init__(self, file_path, vocab, batch_size, max_enc_step, max_dec_step, is_copy, single_pass, beam_search):
 
         self.datas = self.read_data(file_path) # generator
         self.vocab = vocab
@@ -254,6 +254,7 @@ class Batcher():
         self.max_dec_step = max_dec_step
         self.is_copy = is_copy
         self.single_pass = single_pass
+        self.beam_search = beam_search
 
         self._datum_queue = queue.Queue(self.BATCH_QUEUE_MAX * batch_size)
         self._batch_queue = queue.Queue(self.BATCH_QUEUE_MAX)
@@ -320,26 +321,33 @@ class Batcher():
                 else:
                     raise Exception('single_pass is off, but generator is out of data')
 
-            self._datum_queue.put(Datum(
-                datum, self.vocab, self.max_enc_step, self.max_dec_step, self.is_copy
-            ))
+            self._datum_queue.put(
+                Datum(datum, self.vocab, self.max_enc_step, self.max_dec_step, self.is_copy)
+            )
 
     def fill_batch_queue(self):
         while True:
-            all_datas = []
-            for i in range(0, self.batch_size * self._bucketing_cache_size):
-                all_datas.append(self._datum_queue.get())
+            if  self.beam_search:
+                datum = self._datum_queue.get()
+                datas = [datum for _ in range(self.batch_size)] # batch_size is beam_width
+                self._batch_queue.put(
+                    Batch(datas, self.vocab, self.batch_size, self.max_dec_step, self.is_copy)
+                )
+            else:
+                all_datas = []
+                for i in range(self.batch_size * self._bucketing_cache_size):
+                    all_datas.append(self._datum_queue.get())
 
-            all_datas = sorted(all_datas, key = lambda datum: datum.enc_len, reverse = True)
+                all_datas = sorted(all_datas, key = lambda datum: datum.enc_len, reverse = True)
 
-            all_batch = []
-            for i in range(0, len(all_datas), self.batch_size):
-                all_batch.append(all_datas[i: self.batch_size + i])
+                all_batch = []
+                for i in range(0, len(all_datas), self.batch_size):
+                    all_batch.append(all_datas[i: self.batch_size + i])
 
-            for datas in all_batch:
-                self._batch_queue.put(Batch(
-                    datas, self.vocab, self.batch_size, self.max_dec_step, self.is_copy
-                ))
+                for datas in all_batch:
+                    self._batch_queue.put(
+                        Batch(datas, self.vocab, self.batch_size, self.max_dec_step, self.is_copy)
+                    )
 
     def watch_threads(self):
         while True:
@@ -381,12 +389,13 @@ def get_datas(option, vocab):
     valid_path = os.path.join(option.targets_path, option.valid_file)
     test_path  = os.path.join(option.targets_path, option.test_file )
     batch_size = option.batch_size
+    beam_width = option.beam_width
     max_enc_step = option.max_enc_step
     max_dec_step = option.max_dec_step
     is_copy = option.is_copy
-    train_loader = Batcher(train_path, vocab, batch_size, max_enc_step, max_dec_step, is_copy, single_pass = False)
-    valid_loader = Batcher(valid_path, vocab, batch_size, max_enc_step, max_dec_step, is_copy, single_pass = True )
-    test_loader  = Batcher(test_path , vocab, batch_size, max_enc_step, max_dec_step, is_copy, single_pass = True )
+    train_loader = Batcher(train_path, vocab, batch_size, max_enc_step, max_dec_step, is_copy, single_pass = False, beam_search = False)
+    valid_loader = Batcher(valid_path, vocab, batch_size, max_enc_step, max_dec_step, is_copy, single_pass = True , beam_search = False)
+    test_loader  = Batcher(test_path , vocab, beam_width, max_enc_step, max_dec_step, is_copy, single_pass = True , beam_search = True )
     return train_loader, valid_loader, test_loader
 
 def get_loader(option):
