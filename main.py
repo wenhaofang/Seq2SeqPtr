@@ -43,7 +43,7 @@ from loaders.loader1 import get_loader as get_loader1
 
 from modules.module1 import get_module as get_module1
 
-from utils.misc import train, valid, test, save_sample, save_checkpoint, load_checkpoint
+from utils.misc import train, valid, test, save_checkpoint, load_checkpoint, save_sample, calc_matrix
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -136,4 +136,5 @@ if  option.mode == 'test':
         if  count_iter % print_interval == 0:
             logger.info('iter: %d\nsrc: %s\ntrg: %s\npred: %s' % (count_iter, src, trg, pred))
 
-    save_sample(result_folder, sources, targets, predict)
+    save_sample(result_folder, final_iter, sources, targets, predict)
+    calc_matrix(result_folder, final_iter, sources, targets, predict)

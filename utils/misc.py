@@ -3,6 +3,9 @@ import torch
 
 from torch.autograd import Variable
 
+from nltk.translate.bleu_score import corpus_bleu
+from nltk.translate.bleu_score import SmoothingFunction
+
 def save_checkpoint(save_path, model, optim, epoch):
     checkpoint = {
         'model': model.state_dict(),
@@ -17,16 +20,55 @@ def load_checkpoint(load_path, model, optim):
     optim.load_state_dict(checkpoint['optim'])
     return checkpoint['epoch']
 
-def save_sample(folder, sources, targets, predict):
-    sources_path = os.path.join(folder, 'sources.txt')
-    targets_path = os.path.join(folder, 'targets.txt')
-    predict_path = os.path.join(folder, 'predict.txt')
+def save_sample(folder, final_iter, sources, targets, predict):
+    sources_path = os.path.join(folder, '%s_sources.txt' % str(final_iter))
+    targets_path = os.path.join(folder, '%s_targets.txt' % str(final_iter))
+    predict_path = os.path.join(folder, '%s_predict.txt' % str(final_iter))
     for data, file_path in zip (
         [sources, targets, predict],
         [sources_path, targets_path, predict_path]
     ):
         with open(file_path, 'w', encoding = 'utf-8') as txt_file:
             txt_file.writelines([seq + '\n' for seq in data])
+
+def calc_matrix(folder, final_iter, sources, targets, predict):
+    '''TODO
+    Matrix: BLEU-(1,2,3,4) | METEOR | ROUGE-(1,2,L) | CIDEr
+    Github: nlg-eval: <https://github.com/Maluuba/nlg-eval>
+    '''
+    matrix_path = os.path.join(folder, '%s.txt' % str(final_iter))
+    smooth = SmoothingFunction()
+    bleu1 = corpus_bleu(
+        [[sentence.split(' ')] for sentence in targets],
+        [ sentence.split(' ')  for sentence in predict],
+        weights = (1, 0, 0, 0),
+        smoothing_function = smooth.method1
+    )
+    bleu2 = corpus_bleu(
+        [[sentence.split(' ')] for sentence in targets],
+        [ sentence.split(' ')  for sentence in predict],
+        weights = (0.5, 0.5, 0, 0),
+        smoothing_function = smooth.method1
+    )
+    bleu3 = corpus_bleu(
+        [[sentence.split(' ')] for sentence in targets],
+        [ sentence.split(' ')  for sentence in predict],
+        weights = (0.33, 0.33, 0.33, 0),
+        smoothing_function = smooth.method1
+    )
+    bleu4 = corpus_bleu(
+        [[sentence.split(' ')] for sentence in targets],
+        [ sentence.split(' ')  for sentence in predict],
+        weights = (0.25, 0.25, 0.25, 0.25),
+        smoothing_function = smooth.method1
+    )
+    with open(matrix_path, 'w', encoding = 'utf-8') as txt_file:
+        txt_file.writelines([
+            'BLEU-1:' + '\t' + str(bleu1) + '\n',
+            'BLEU-2:' + '\t' + str(bleu2) + '\n',
+            'BLEU-3:' + '\t' + str(bleu3) + '\n',
+            'BLEU-4:' + '\t' + str(bleu4) + '\n'
+        ])
 
 def get_inp_from_batch(batch, device, is_copy, is_coverage):
     enc_inp = Variable(torch.from_numpy(batch.enc_inp).long())
