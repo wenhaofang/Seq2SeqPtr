@@ -24,9 +24,8 @@ def get_parser():
     parser.add_argument('--max_dec_step', type = int, default = 100, help = '')
 
     # For Module
-    parser.add_argument('--emb_dim', type = int, default = 256, help = '')
-    parser.add_argument('--hid_dim', type = int, default = 512, help = '')
-    parser.add_argument('--dropout', type = float, default = 0.5, help = '')
+    parser.add_argument('--emb_dim', type = int, default = 128, help = '')
+    parser.add_argument('--hid_dim', type = int, default = 256, help = '')
 
     parser.add_argument('--is_copy', action = 'store_true', help = '')
     parser.add_argument('--is_coverage', action = 'store_true', help = '')

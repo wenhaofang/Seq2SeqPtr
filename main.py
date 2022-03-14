@@ -66,7 +66,7 @@ ada_init_ac = option.ada_init_ac
 optimizer = optim.Adagrad(params_list, lr = ada_init_lr, initial_accumulator_value = ada_init_ac)
 
 print_interval = 100
-check_interval = 1000
+check_interval = 5000
 
 assert option.mode in ['train', 'valid', 'test']
 

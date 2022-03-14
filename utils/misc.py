@@ -6,6 +6,8 @@ from torch.autograd import Variable
 from nltk.translate.bleu_score import corpus_bleu
 from nltk.translate.bleu_score import SmoothingFunction
 
+from rouge import Rouge # independant from official script (ROUGE-155), results may be slighlty different
+
 def save_checkpoint(save_path, model, optim, epoch):
     checkpoint = {
         'model': model.state_dict(),
@@ -36,38 +38,55 @@ def calc_matrix(folder, final_iter, sources, targets, predict):
     Matrix: BLEU-(1,2,3,4) | METEOR | ROUGE-(1,2,L) | CIDEr
     Github: nlg-eval: <https://github.com/Maluuba/nlg-eval>
     '''
-    matrix_path = os.path.join(folder, '%s.txt' % str(final_iter))
+    # BLEU
     smooth = SmoothingFunction()
-    bleu1 = corpus_bleu(
+    bleu_1 = corpus_bleu(
         [[sentence.split(' ')] for sentence in targets],
         [ sentence.split(' ')  for sentence in predict],
         weights = (1, 0, 0, 0),
         smoothing_function = smooth.method1
     )
-    bleu2 = corpus_bleu(
+    bleu_2 = corpus_bleu(
         [[sentence.split(' ')] for sentence in targets],
         [ sentence.split(' ')  for sentence in predict],
         weights = (0.5, 0.5, 0, 0),
         smoothing_function = smooth.method1
     )
-    bleu3 = corpus_bleu(
+    bleu_3 = corpus_bleu(
         [[sentence.split(' ')] for sentence in targets],
         [ sentence.split(' ')  for sentence in predict],
         weights = (0.33, 0.33, 0.33, 0),
         smoothing_function = smooth.method1
     )
-    bleu4 = corpus_bleu(
+    bleu_4 = corpus_bleu(
         [[sentence.split(' ')] for sentence in targets],
         [ sentence.split(' ')  for sentence in predict],
         weights = (0.25, 0.25, 0.25, 0.25),
         smoothing_function = smooth.method1
     )
+    # ROUGE
+    rouge_utils = Rouge()
+    rouge_score = rouge_utils.get_scores(predict, targets, avg = True)
+    # rouge_1_r = rouge_score['rouge-1']['r']
+    # rouge_1_p = rouge_score['rouge-1']['p']
+    # rouge_2_r = rouge_score['rouge-2']['r']
+    # rouge_2_p = rouge_score['rouge-2']['p']
+    # rouge_L_r = rouge_score['rouge-l']['r']
+    # rouge_L_p = rouge_score['rouge-l']['p']
+    rouge_1_f = rouge_score['rouge-1']['f']
+    rouge_2_f = rouge_score['rouge-2']['f']
+    rouge_L_f = rouge_score['rouge-l']['f']
+    # RESULT
+    matrix_path = os.path.join(folder, '%s.txt' % str(final_iter))
     with open(matrix_path, 'w', encoding = 'utf-8') as txt_file:
         txt_file.writelines([
-            'BLEU-1:' + '\t' + str(bleu1) + '\n',
-            'BLEU-2:' + '\t' + str(bleu2) + '\n',
-            'BLEU-3:' + '\t' + str(bleu3) + '\n',
-            'BLEU-4:' + '\t' + str(bleu4) + '\n'
+            'BLEU-1:' + '\t' + str(round(bleu_1, 4)) + '\n',
+            'BLEU-2:' + '\t' + str(round(bleu_2, 4)) + '\n',
+            'BLEU-3:' + '\t' + str(round(bleu_3, 4)) + '\n',
+            'BLEU-4:' + '\t' + str(round(bleu_4, 4)) + '\n',
+            'ROUGE-1:' + '\t' + str(round(rouge_1_f, 4)) + '\n',
+            'ROUGE-2:' + '\t' + str(round(rouge_2_f, 4)) + '\n',
+            'ROUGE-L:' + '\t' + str(round(rouge_L_f, 4)) + '\n',
         ])
 
 def get_inp_from_batch(batch, device, is_copy, is_coverage):

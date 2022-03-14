@@ -8,10 +8,9 @@ from torch.nn.utils.rnn import pack_padded_sequence
 from torch.nn.utils.rnn import  pad_packed_sequence
 
 class Encoder(nn.Module):
-    def __init__(self, vocab_size, emb_dim, hid_dim, dropout):
+    def __init__(self, vocab_size, emb_dim, hid_dim):
         super(Encoder, self).__init__()
         self.hid_dim = hid_dim
-        self.dropout   = nn.Dropout  (dropout)
         self.embedding = nn.Embedding(vocab_size, emb_dim)
         self.encoder   = nn.LSTM     (emb_dim, hid_dim, batch_first = True, bidirectional = True)
         self.transform = nn.Linear   (hid_dim * 2 , hid_dim * 2 , bias = False)
@@ -29,7 +28,7 @@ class Encoder(nn.Module):
                 (2, batch_size, hid_dim)
             )
         '''
-        embedded = self.dropout(self.embedding(seq))
+        embedded = self.embedding(seq)
         embedded = pack_padded_sequence(embedded, seq_len.to('cpu'), batch_first = True, enforce_sorted = False)
         outputs, hiddens = self.encoder(embedded)
         outputs, lengths = pad_packed_sequence(outputs, batch_first = True)
@@ -116,11 +115,10 @@ class Attention(nn.Module):
         return c_t, attn, coverage
 
 class Decoder(nn.Module):
-    def __init__(self, vocab_size, emb_dim, hid_dim, dropout, is_copy, is_coverage):
+    def __init__(self, vocab_size, emb_dim, hid_dim, is_copy, is_coverage):
         super(Decoder, self).__init__()
         self.hid_dim = hid_dim
         self.is_copy = is_copy
-        self.dropout   = nn.Dropout  (dropout)
         self.embedding = nn.Embedding(vocab_size, emb_dim)
         self.transform = nn.Linear   (hid_dim * 2 + emb_dim, emb_dim)
         self.decoder   = nn.LSTM     (emb_dim, hid_dim, batch_first = True, bidirectional = False)
@@ -172,7 +170,7 @@ class Decoder(nn.Module):
 
             coverage = coverage_next
 
-        y_t_emb = self.dropout(self.embedding(y_t))
+        y_t_emb = self.embedding(y_t)
 
         x = torch.cat((c_t, y_t_emb), dim = 1)
         x = self.transform(x)
@@ -189,6 +187,9 @@ class Decoder(nn.Module):
 
         c_t, extra_prob, coverage_next \
             = self.attention(s_t_hat, enc_out, enc_fea, enc_pad_mask, coverage)
+
+        if  self.training or t > 0:
+            coverage = coverage_next
 
         p_gen = None
         if  self.is_copy:
@@ -214,7 +215,7 @@ class Decoder(nn.Module):
         else:
             final_prob = vocab_prob
 
-        return final_prob, s_t, c_t, extra_prob, coverage_next
+        return final_prob, s_t, c_t, extra_prob, coverage
 
 class BeamNode():
     def __init__(self, idx, pro, s_t, c_t, coverage):
@@ -242,17 +243,22 @@ class BeamNode():
         return sum(self.pro) / len(self.idx)
 
 class Seq2Seq(nn.Module):
-    def __init__(self, vocab_size, emb_dim, hid_dim, dropout, is_copy, is_coverage):
+    def __init__(self, vocab_size, emb_dim, hid_dim, is_copy, is_coverage):
         super(Seq2Seq, self).__init__()
-        self.encoder = Encoder(vocab_size, emb_dim, hid_dim, dropout)
-        self.decoder = Decoder(vocab_size, emb_dim, hid_dim, dropout, is_copy, is_coverage)
+        self.encoder = Encoder(vocab_size, emb_dim, hid_dim)
+        self.decoder = Decoder(vocab_size, emb_dim, hid_dim, is_copy, is_coverage)
         self.reduce_state = ReduceState(hid_dim)
         self.vocab_size = vocab_size
         self.emb_dim = emb_dim
         self.hid_dim = hid_dim
-        self.dropout = dropout
         self.is_copy = is_copy
         self.is_coverage = is_coverage
+        self.init_params()
+
+    def init_params(self):
+        for param in self.parameters():
+            if  param.requires_grad and len(param.shape) > 0:
+                torch.nn.init.uniform_(param, a = -0.05, b = 0.05)
 
     def forward( self,
         enc_inp, enc_len, enc_pad_mask, enc_inp_extend_vocab, extra_zeros, coverage,
@@ -400,7 +406,6 @@ def get_module(option, vocab_size):
         vocab_size,
         option.emb_dim,
         option.hid_dim,
-        option.dropout,
         option.is_copy,
         option.is_coverage
     )

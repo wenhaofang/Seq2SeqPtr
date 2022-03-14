@@ -302,13 +302,14 @@ class Batcher():
                 datas.append((src, trg))
 
         while True:
+            if  not self.single_pass:
+                random.shuffle(datas)
+
             for datum in datas:
                 yield datum
 
             if  self.single_pass:
                 break
-            else:
-                random.shuffle(datas)
 
     def fill_datum_queue(self):
         while True:
@@ -343,6 +344,9 @@ class Batcher():
                 all_batch = []
                 for i in range(0, len(all_datas), self.batch_size):
                     all_batch.append(all_datas[i: self.batch_size + i])
+
+                if  not self.single_pass:
+                    random.shuffle(all_batch)
 
                 for datas in all_batch:
                     self._batch_queue.put(
